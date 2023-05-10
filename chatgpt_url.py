@@ -4,52 +4,9 @@ import setting
 import postblogger
 import langid
 
-def traslate(text, to_lang):
+def make_summary(article_url):
     openai.api_key = setting.OPENAI_API_KEY
-    prompt = f"Please translate '{text}' to {to_lang}."
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": "You are an excellent NBA reporter."},
-            {"role": "user", "content": prompt},
-        ]
-    )
-
-    translated = response['choices'][0]['message']['content']
-    
-    return translated
-
-def split_text(text):
-    if 'content:' in text:
-        title, summary = text.split('content:', 1)
-        return title.strip(), summary.strip()
-    else:
-        parts = text.split('\n\n', 1)
-        if len(parts) > 1:
-            return parts[0].strip(), parts[1].strip()
-        else:
-            return text.strip(), ''
-
-def format_text(text):
-    title, summary = split_text(text)
-
-    title = title.replace("title:", "")
-    title = title.lstrip()
-    summary = summary.lstrip()
-    
-    return title, summary
-
-def add_p_tag(summary):
-    paragraphs = summary.split("\n\n")
-    summary_p = ""
-    for p in paragraphs:
-        summary_p += "<p>" + p + "</p>"
-        
-    return summary_p
-
-def make_summary(article_title, article_body, article_url):
-    openai.api_key = setting.OPENAI_API_KEY
-    prompt = f"Please summarize the news article in Japanese within 800 characters or less.\
+    prompt = f"I will give you the URL of a news article about the NBA, so please summarize the news article in Japanese within 800 characters or less.\
                 \
                 Do not explain all the contents of the original article. End the story in three paragraphs, no matter how long the original text is.\
                 \
@@ -81,11 +38,8 @@ def make_summary(article_title, article_body, article_url):
                 \
                 =========\
                 \
-                title:\
-                {article_title}\
-                \
-                text:\
-                {article_body}\
+                URL:\
+                {article_url}\
                 \
                 =========\
                 \
@@ -96,26 +50,53 @@ def make_summary(article_title, article_body, article_url):
         messages=[
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": prompt},
-        ],
-        temperature=0,
+        ]
     )
     
 
     text = response['choices'][0]['message']['content']
     print("text:", text)
     
-    title, summary = format_text(text)
+    title = ""
+    summary = ""
+
+    title, summary = text.split("content:", 1)
+
+    title = title.replace("title:", "")
+    title = title.lstrip()
+    summary = summary.lstrip()
     
-    # タイトルが日本語訳されていないとき再度翻訳にかける
-    title_lang = langid.classify(title)[0]
-    if title_lang != "ja":
-        title = traslate(text=title, to_lang="Japanese")
-    
-    summary_p = add_p_tag(summary)
-        
-    summary_p = summary_p + f"<p><a href='{article_url}'>引用元</a></p>"
+    paragraphs = summary.split("\n\n")
+    summary_p = ""
+    for p in paragraphs:
+        summary_p += "<p>" + p + "</p>"
 
     print("token:", response["usage"]["total_tokens"])
     
-    # summary_pにsimilarityとcategoryを付けたものがcontentになる
     return title, summary_p
+
+def traslate(text, to_lang):
+    openai.api_key = setting.OPENAI_API_KEY
+    prompt = f"Please translate '{text}' to {to_lang}."
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": "You are an excellent NBA reporter."},
+            {"role": "user", "content": prompt},
+        ]
+    )
+
+    translated = response['choices'][0]['message']['content']
+    
+    return translated
+    
+title_gpt, summary_gpt = make_summary("https://www.nba.com/news/5-takeaways-lakers-grizzlies-game-5")
+title_lang = langid.classify(title_gpt)[0]
+if title_lang != "ja":
+    title_gpt = traslate(text=title_gpt, to_lang="Japanese")
+
+summary_gpt = summary_gpt + "<p><a href='https://www.nba.com/news/5-takeaways-lakers-grizzlies-game-5'>引用元</a></p>"
+
+client_id = setting.c_id
+client_secret = setting.c_sr
+postblogger.post_blogger(client_id=client_id, client_secret=client_secret, title=title_gpt, content=summary_gpt)

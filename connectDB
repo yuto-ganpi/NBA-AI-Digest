@@ -6,6 +6,7 @@ import datetime
 import setting
 import scrapying
 import chatgpt
+import postblogger
 
 mongodbatlas_pass = setting.mongodbatlas_pass
 
@@ -43,8 +44,18 @@ def insert_content():
 # update = {"$unset": {"content": 1}}
 # rapidapi.update_many(query, update)
 
+client_id = setting.c_id
+client_secret = setting.c_sr
+counter = 0
+
 for data in rapidapi.find({"source": "nba"}):
-    content = data["content"]
-    summary = chatgpt.make_summary(content)
-    rapidapi.update_one({"_id": data["_id"]}, {"$set": {"summary": summary}})
+    counter += 1
+    title_db = data["title"]
+    content_db = data["content"]
+    url_db = data["url"]
+    title_gpt, summary_gpt = chatgpt.make_summary(article_title=title_db, article_body=content_db, article_url=url_db)
+    rapidapi.update_one({"_id": data["_id"]}, {"$set": {"title_ja": title_gpt, "summary": summary_gpt}})
+    postblogger.post_blogger(client_id=client_id, client_secret=client_secret, title=title_gpt, content=summary_gpt)
+    if counter == 10:
+        break
     

@@ -35,3 +35,5 @@ def make_content(url):
     print(content)
     
     return content
+
+make_content("https://www.nba.com/news/5-takeaways-lakers-grizzlies-game-5")
