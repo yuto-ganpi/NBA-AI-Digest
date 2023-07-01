@@ -6,11 +6,12 @@ import httplib2
 import os
 import sys
 import setting
+from bson.objectid import ObjectId
 
 client_id = setting.c_id
 client_secret = setting.c_sr
 
-def post_blogger(client_id, client_secret, title, content):
+def post_blogger(client_id, client_secret, title:str, content: str, category: list, dup_title_url, reference_url, reference_title):
      
     # flowオブジェクトの生成
     client_id     = client_id
@@ -34,13 +35,42 @@ def post_blogger(client_id, client_secret, title, content):
  
     service = build('blogger', 'v3', http=http)
     posts   = service.posts()
+    
+    # labelsで与えるcategoryはlist形式ではなく,で区切るだけの文字列で受け付けている
+    category_str = ', '.join(category)
+    
+    # 重複記事の場合
+    if(dup_title_url):
+        li_script = ""
+        for item in dup_title_url:
+            url = item[0]
+            title = item[1]
+            li_script += f'<li><a href="{url}">{title}</a></li>'
+        
+        title = "【類似記事有】" + title
+        content = f'\n\
+<h3>関連記事一覧</h3>\n\
+    <ul>\n\
+        {li_script}\n\
+    </ul>\n\
+\n' + content
+
+    content = content + f"<p>引用元：<a href='{reference_url}'>{reference_title}</a></p>"
+    
     body    = {
                   "kind": "blogger#post",
                   "id": "9113440773520455515",
                   "title": title,
-                  "content": content
+                  "content": content,
+                  "labels": category_str,
               }
     insert    = posts.insert(blogId='9113440773520455515', body=body)
     posts_doc = insert.execute()
  
     print(posts_doc)
+    
+    article_url = posts_doc['url']
+    article_title = posts_doc['title']
+    
+    return article_url, article_title
+    
